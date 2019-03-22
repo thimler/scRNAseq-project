@@ -1,5 +1,11 @@
 ---
-title: "single-cell-analysis"
+title: "Single cell analysis"
+author:
+  - "Valentin Gabeff"
+  - "Théo Imler"
+  - "Abigail Strefeler"
+  - "léo Sumi"
+date: "March 2019"
 output:
   html_document: default
   pdf_document: default
