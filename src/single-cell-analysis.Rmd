@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = "..")
 ```
 
-```{r start, include=FALSE}
+```{r libraries, include=FALSE}
 # Loading libraries
 library(ggplot2)
 library(ellipse)
@@ -28,13 +28,16 @@ library(factoextra)
 library(pheatmap)
 library(cluster)
 library(rgl)
+```
 
+```{r import, include=FALSE}
 # Load the data
 data <- read.table("data/Group5_data.txt", header = TRUE, sep = "\t", dec = ".", row.names = "X")
 data.cells <- ncol(data)
 data.rows <- nrow(data)
 ```
-##Introduction
+
+## Introduction
 
 A heterogenous mix of cells was analysed using single-cell RNA-seq. After pre-processing and quality control, we have a dataset containing 73 cells showing expression of 23'351 genes.
 The number of read genes per cell, on average, comes out to 9503. This was calculated by simply counting the number of nonzero entries for each cell, and performing an average. The number of genes per cell can give information about quality, since samples epxressing too few genes are more likely free RNA, and samples expressing too many are likely doublets of cells. Plotting expression per cell shows an even distribution of gene counts over the different cells (TODO).
@@ -48,13 +51,13 @@ avg_per_cell <- mean(per_cell)
 hist(per_cell)
 ```
 
-##Results
-###Part 1: Number of cell types
+## Results
+
+### Part 1: Number of cell types
 
 The number of cell types is determined using clustering. The criteria we use for clustering is the expression of certain genes: cells that express these genes in a similar manner are more closely related than those that express them differently.
 
 First we must decide which genes we will use to compare cells. We have two main options, either we retreive only highly expressed genes or we use genes with highly variable expression. Here we decided to use genes with a high variability as the histogram of variability shows an evident tail. Yet, this choice should not alter our results much. Hence out of all of the detected genes, we keep only these ones in our analysis. Explain why variablitlity is better as we use clusters
-
 
 ```{r marker genes, echo=FALSE}
 # Get most expressed genes
@@ -84,7 +87,6 @@ data.norm = voom(data.filtered_variable, plot=TRUE, normalize.method = "quantile
 #head(data.norm$E, 5)
 ```
 
-
 ```{r saving data, include=FALSE}
 # Save to txt format the normalized data (data.norm$E)
 write.table(data.norm$E, file = "results/normalized_data.txt", append = FALSE, sep = "\t",
@@ -94,7 +96,6 @@ write.table(data.norm$E, file = "results/normalized_data.txt", append = FALSE, s
 
 # Save to binary format the normalized data (data.norm$E)
 save(data.norm, file = "results/datanorm.rdata")
-
 ```
 
 So far, data are bein spread on 2335 dimensions. We use Principal Component Analysis (PCA) to project the data on a 3D space whose basis explain most of the variance among the data.
@@ -130,7 +131,8 @@ pca3d(pca=pca.fit$x, group=pca.pam$clustering, show.ellipses=TRUE, show.plane=TR
 # You can again save the clusters in a file
 write.table(pca.pam$clustering, file = "results/kmeans_clusters.txt")
 ```
-###Part 2: Marker genes for different cell types
+
+### Part 2: Marker genes for different cell types
 
 Different cell types will have certain genes that they express in a manner different from other cell types. These are called differentially expressed genes.
 By choosing one cluster of cell and comparing the expression of their genes against the other clusters, one can statistically determine the fold change 
@@ -195,6 +197,7 @@ write.table(DE.genesC4, file = "results/DEGenesC4.txt", append = FALSE, sep = "\
             col.names = FALSE, qmethod = c("escape", "double"),
             fileEncoding = "utf8", quote=FALSE)
 ```
+
 ```{r heatmap, echo=FALSE}
 pheatmap(data.norm[c(DE.genesC1, DE.genesC2, DE.genesC3, DE.genesC4),],
          cluster_cols = T,
@@ -204,11 +207,10 @@ pheatmap(data.norm[c(DE.genesC1, DE.genesC2, DE.genesC3, DE.genesC4),],
          annotation_col = data.frame(cluster = factor(pca.pam$clustering, labels = paste("Cluster", 1:4))),
          main = "Heatmap of the top 100 most expressed genes for each clusters"
          )
-
 ```
 
+## Determining the cell types
 
-##Part 3: Determining the cell types
 To determine the different cell types present in our sample, we upload the differentially expressed genes for each cluster into EnrichR. We found that we have cells from the heart, adipose tissue, hypothalamus, and cerebral cortex. These last two categories explain the similarity between two of our clusters, since they are both neural tissues.
 
 ```{r cell type, echo= FALSE}
@@ -237,9 +239,7 @@ c3.expr_col = colorRamp(c("white", "red"))(c3.expr_norm)
 max(c3.expr_norm)
 min(c3.expr_norm)
 pca3d(pca = pca.fit$x, col = rgb(c3.expr_col, maxColorValue = 255), title = DE.genesC3[1])
-
 ```
-
 
 [Insert the graphs from EnrichR?]
 
