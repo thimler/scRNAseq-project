@@ -100,7 +100,8 @@ save(data.norm, file = "results/datanorm.rdata")
 
 So far, data are bein spread on 2335 dimensions. We use Principal Component Analysis (PCA) to project the data on a 3D space whose basis explain most of the variance among the data.
 
-Reducing dimensionality allows us to visualize the data, and gives us some idea about what clusters may be present. On a 3D interactive plot, we can visually identify 4 clusters. viz_eig function allows to determine what is the optimal number of cluster. The resulting histogram also shows that the optimal number of cluster is also 4.
+Reducing dimensionality allows us to visualize the data, and gives us some idea about what clusters may be present. `fviz_eig` function allows us to know the percentage of explained variance for each principal component. We choose to use three principal components and represent the principal component analysis (PCA) in 3D. On a 3D interactive plot, we can visually identify 4 clusters. 
+
 To cluster the data, we use a more robust version of k-means called partitioning around medoids (PAM). Representative objects called medoids are found, and groups are creating by assigning each point to the nearest medoid. This method minimizes the sum of dissimilarities of observations to their closest representative object.
 
 ```{r pca and clustering, echo=FALSE}
