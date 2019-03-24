@@ -9,7 +9,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 
 # Working directory
-setwd("C:/Users/Valentin/Desktop/EPFL/MAII/SCB/single_cell_analysis/")
+setwd("C:/Users/Lucas/Desktop/EPFL/Single Cell/Project/single_cell_analysis-master")
 ```
 
 
@@ -25,24 +25,25 @@ library(factoextra)
 library(pheatmap)
 library(cluster)
 library(rgl)
+library(readr)
 
 # Load the data
-data <- read.table("data/Group5_data.txt", header = TRUE, sep = "\t", dec = ".", row.names = "X")
+data <- read.table("C:/Users/Lucas/Desktop/EPFL/Single Cell/Project/single_cell_analysis-master/data/Group5_data.txt", header = TRUE, sep = "\t", dec = ".", row.names = "X")
 data.cells <- ncol(data)
 data.rows <- nrow(data)
 ```
 ##Introduction
 
 A heterogenous mix of cells was analysed using single-cell RNA-seq. After pre-processing and quality control, we have a dataset containing 73 cells showing expression of 23'351 genes.
-The number of read genes per cell, on average, comes out to 9503. This was calculated by simply counting the number of nonzero entries for each cell, and performing an average. The number of genes per cell can give information about quality, since samples epxressing too few genes are more likely free RNA, and samples expressing too many are likely doublets of cells. Plotting expression per cell shows an even distribution of gene counts over the different cells (TODO).
+The number of read genes per cell, on average, comes out to 9503. This was calculated by simply counting the number of nonzero entries for each cell, and performing an average. The number of genes per cell can give information about quality, since samples epxressing too few genes are more likely free RNA, and samples expressing too many are likely doublets of cells. Plotting expression per cell shows an even distribution of gene counts over the different cells.
 
 ```{r genes per cell, echoe=FALSE}
 # Genes per cell
 per_cell <- colSums(data != 0)
 avg_per_cell <- mean(per_cell)
-#counts <- data.frame(per_cell, row.names=1:73)
-#plot(counts)
-hist(per_cell)
+counts <- data.frame(per_cell, row.names=1:73)
+plot(counts$per_cell,type = "l",xlab = "Cell samples", ylab = "Counts per cell")
+hist(per_cell,breaks= 50 ,col='blue',freq = TRUE)
 ```
 
 ##Results
@@ -69,7 +70,7 @@ rm(gene.expression)
 # We choose to recover the 10% most variable genes
 sorted_sd <- sort(gene.variation, decreasing = TRUE)
 genes.mostvariable <- head(sorted_sd, 0.1*data.rows)
-hist(log10(genes.mostvariable), breaks = 50)
+hist(log10(genes.mostvariable), breaks = 50,col = "blue",freq = TRUE,main = "10% most variable genes", xlab = "Gene expression standard deviation (log10)")
 ```
 
 To be able to correctly compare expression between cell types, gene expression must be normalized. This is due to the difference in the number of reads per cells.
@@ -94,10 +95,13 @@ save(data.norm, file = "results/datanorm.rdata")
 
 ```
 
-So far, data are bein spread on 2335 dimensions. We use Principal Component Analysis (PCA) to project the data on a 3D space whose basis explain most of the variance among the data.
+So far, data are bein spread on 2335 dimensions. We use Principal Component Analysis (PCA) to project the data on a 3D space whose basis explain most of the variance among the data. 
 
-Reducing dimensionality allows us to visualize the data, and gives us some idea about what clusters may be present. On a 3D interactive plot, we can visually identify 4 clusters. viz_eig function allows to determine what is the optimal number of cluster. The resulting histogram also shows that the optimal number of cluster is also 4.
-To cluster the data, we use a more robust version of k-means called partitioning around medoids (PAM). Representative objects called medoids are found, and groups are creating by assigning each point to the nearest medoid. This method minimizes the sum of dissimilarities of observations to their closest representative object.
+Reducing dimensionality allows us to visualize the data, and gives us some idea about what clusters may be present. For tridimensionnal visualization we selected the three first components which explained 40% of the data variance as show on the graph below. On a 3D interactive plot, we can visually identify 4 clusters. 
+
+To cluster the data, we use k-medoids (or PAM-algorithm). PAM was prefered wo k-means due to tis robustness to noise and outliers.Representative objects called medoids are found, and groups are creating by assigning each point to the nearest medoid. This method minimizes the sum of dissimilarities of observations to their closest representative object.
+
+As the k-means, the number of clusters must be specified before execution.Thus, we runned the algorithm serveral times for a number cluser varying between 2 and 15 and evaluated our objective function. As k-means we looked for the "elbow" point and unsurpisingly we found k=4 as the best number of clusters which are well segregated on our PCA plot as we can see below.
 
 ```{r pca and clustering, echo=FALSE}
 # PCA
@@ -129,13 +133,16 @@ write.table(pca.pam$clustering, file = " results/kmeans_clusters.txt")
 ```
 ###Part 2: Marker genes for different cell types
 
-Different cell types will have certain genes that they express in a manner different from other cell types. These are called differentially expressed genes.
-By choosing one cluster of cell and comparing the expression of their genes against the other clusters, one can statistically determine the fold change 
-of expression using the limma package.
+Different cell types will have certain genes that they express in a significantly different manner from other cell types. These are called differentially expressed genes.
+By choosing one cluster of cell and comparing the expression of their genes against the other clusters, one can statistically determine the fold change of expression using the limma package. The genes were selected as DE genes when then the absolute value of expression fold change was superior to 10 and the differences significative (p-values).
 
-The 100 differentially expressed genes can be represented using a heatmap. We indeed see that the 4 different cell types show differential expression of these. When the most expressed marker genes are plotted onto the PCA, they clearly belong to the different cell types we have identified. [Code/gif required]
+The 100 differentially expressed genes can be represented using a heatmap. We indeed see that the 4 different cell types show differential expression of these. 
 
-We can see that the first two clusters on the heat map are quite close to each others. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cell is less important than between the other clusters.
+We found TPH2 (Tryptophan hydroxylase 2), SPARC (Osteonectin), FABP4 (Fatty Acid-Binding Protein 4) and ACTC1 (Actin Alpha Cardiac Muscle 1) as the most differently expressed gene for each individual cluster. We choose to color the PCA according to the cell expression of each of these four genes.
+
+It is interesting to note that for SPARC, every cluster except one express the gene. This is explained by a negative fold change value. The first differently expressed gene with a positive fold change in this is cluster is RGS4 (Regulator of G protein Signaling 4), we represented as weel on the graph.
+
+On the heatmap we can see that the first two clusters are quite close to each others. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cell is less important than between the other clusters.
 
 ```{r DE genes, include=FALSE}
 # DE Genes
@@ -186,7 +193,7 @@ fit.C4 <- eBayes(fit.C4)
 
 DE.C4 = topTable(fit.C4,n=Inf,adjust="fdr", sort.by = "logFC")
 DE.genesC4<-row.names(head(DE.C4[(abs(DE.C4[,1])>2) & (DE.C4[,5]<0.05),], 100))
-#DE.genesC4<-row.names(DE.C4)[DE.C4$logFC>2 & DE.C4$adj.P.Val<0.05]
+DE.genesC4<-row.names(DE.C4)[DE.C4$logFC>2 & DE.C4$adj.P.Val<0.05]
 write.table(DE.genesC4, file = " results/DEGenesC4.txt", append = FALSE, sep = "\n",
             eol = "\n", na = "NA", dec = ".", row.names = FALSE,
             col.names = FALSE, qmethod = c("escape", "double"),
@@ -206,35 +213,51 @@ pheatmap(data.norm[c(DE.genesC1, DE.genesC2, DE.genesC3, DE.genesC4),],
 
 
 ##Part 3: Determining the cell types
-To determine the different cell types present in our sample, we upload the differentially expressed genes for each cluster into EnrichR. We found that we have cells from the heart, adipose tissue, hypothalamus, and cerebral cortex. These last two categories explain the similarity between two of our clusters, since they are both neural tissues.
+To determine the different cell types present in our sample, we upload the differentially expressed genes for each cluster into EnrichR, an integrative web-based gene-list enrichment analysis tool. We found that we have cells from the heart, adipose tissue, hypothalamus, and cerebral cortex. These last two categories explain the similarity between two of our clusters, since they are both neural tissues.
+
+
 
 ```{r cell type, echo= FALSE}
 c4.expr = data.filtered_variable[DE.genesC4[1],]
+
 c4.expr_norm = log10(c4.expr+1)/max(log10(c4.expr+1))
 c4.expr_col = colorRamp(c("white", "red"))(c4.expr_norm)
 pca3d(pca = pca.fit$x, col = rgb(c4.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC4[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 
 c1.expr = data.filtered_variable[DE.genesC1[1],]
 c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
 c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
 max(c1.expr_norm)
 min(c1.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c1.expr_col, maxColorValue = 255))
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c1.expr = data.filtered_variable[DE.genesC1[2],]
+c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
+c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
+max(c1.expr_norm)
+min(c1.expr_norm)
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[2], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
 
 c2.expr = data.filtered_variable[DE.genesC2[1],]
 c2.expr_norm = log10(c2.expr+1)/max(log10(c2.expr+1))
 c2.expr_col = colorRamp(c("white", "red"))(c2.expr_norm)
 max(c2.expr_norm)
 min(c2.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c2.expr_col, maxColorValue = 255))
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c2.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC2[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 
 c3.expr = data.filtered_variable[DE.genesC3[1],]
 c3.expr_norm = log10(c3.expr+1)/max(log10(c3.expr+1))
 c3.expr_col = colorRamp(c("white", "red"))(c3.expr_norm)
 max(c3.expr_norm)
 min(c3.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c3.expr_col, maxColorValue = 255), title = DE.genesC3[1])
 
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c3.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC3[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 ```
 
 
