@@ -2,9 +2,9 @@
 title: "Single cell RNA-seq Analysis"
 author:
   - "Valentin Gabeff"
-  - "ThÃ©o Imler"
+  - "Théo Imler"
   - "Abigail Strefeler"
-  - "LÃ©o Sumi"
+  - "Léo Sumi"
 date: "March 2019"
 output: html_document
 ---
@@ -134,11 +134,15 @@ Different cell types will have certain genes that they express in a manner diffe
 
 The 100 differentially expressed genes can be represented using a heatmap. We indeed see that the 4 different cell types show differential expression of these.
 
-On the heatmap, we can see that the first two clusters are quite close to each other. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cells is less important than between the other clusters.
+On the heatmap, we can see that the first two clusters are quite close to each other. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cells is less important than between the other clusters. Heatmaps effectively retrieved 4 clusters from the 400 DE genes that were selected, hence confirming the clustering method performed above.
+(Note that the name of the cluster displayed on the heatmap may not match the one of the k-means.)
 
 We found that TPH2 (Tryptophan hydroxylase 2), SPARC (Osteonectin), FABP4 (Fatty Acid-Binding Protein 4), and ACTC1 (Actin Alpha Cardiac Muscle 1) were the most differentially expressed genes for each individual cluster. When we plot their expression on the PCA, they clearly belong to the different cell types we have identified. It is interesting to note that SPARC is expressed by all clusters but one, because of a negative fold change value. The first differentially expressed gene with a positive fold change in this cluster is RGS4 (Regulator of G protein Signalling 4), and we have represented this as well on the plot.
+A red dot means that the gene is more express in the corresponding cell.   Intensity is calculated as log10(expression+1) and normalized to the maximum expression level.
 
-![pca3d](../data/pca3d.jpg)
+
+![pca3d](../data/pca3d.jpg)  
+(nb: please run the .rmd file to have access to the 3d interactive plot. We were not able to embed it in the html output)
 
 ![DE genes](../data/DEgenes.gif)
 
@@ -254,10 +258,31 @@ pheatmap(data.norm[c(DE.genesC1, DE.genesC2, DE.genesC3, DE.genesC4),],
 ## Determining the cell types
 
 To determine the different cell types present in our sample, we upload the differentially expressed genes for each cluster into EnrichR, an integrative web-based gene-list enrichment analysis tool. We found that we have cells from the heart, adipose tissue, hypothalamus, and cerebral cortex. These last two categories explain the similarity between two of our clusters, since they are both neural tissues.
+For the sake of the Enrichment analysis, one must only take DE genes that are more expressed in the cluster, hence genes such as SPARC that are less expressed specifically in one cluster are not taken into account.
+
+Cluster 1:  
 
 ![Cell type for cluster 1](../data/C1_type.jpg)
+![Cell type for cluster 1](../data/Enrich4.jpeg)
+
+Cluster 2:  
 ![Cell type for cluster 2](../data/C2_type.jpg)
+![Cell type for cluster 2](../data/Enrich3.jpeg)
+
+Cluster 3:  
 ![Cell type for cluster 3](../data/C3_type.jpg)
+![Cell type for cluster 3](../data/Enrich2.jpeg)
+
+Cluster 4:  
 ![Cell type for cluster 4](../data/C4_type.jpg)
+![Cell type for cluster 4](../data/Enrich1.jpeg)
+
+## Conclusion
+
+Overall, this method allowed us to retrieve 4 distinct clusters from the initial dataset.  
+Clustering was performed by reducing dimension using PCA followed by k-medoids. Those results were then confirmed the heatmap. DE genes from each clusters were retreived using Limma and the nature of each cell group was then found using EnrichR.  
+We found that Cluster 1 is mainly composed of cells from the cerebral cortex while Cluster 4 showed evidences of hypothalamus expression genes. Due to the proximity of these cell lines, this explain why the two clusters were closely related on the heatmap and on the PCA plot. 
+The two other clusters account for heart tissues and adipose brown tissues.
+
 
 
