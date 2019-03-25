@@ -123,7 +123,6 @@ plot(x = row.names(wss),y = wss$matrix.ncol...1..nrow...15., type = "o", xlab="N
 
 pca.pam <- pam(x=pca.fit$x[,1:3], k=4, metric="euclidean", stand=FALSE)
 pca3d(pca=pca.fit$x, group=pca.pam$clustering, show.ellipses=TRUE, show.plane=TRUE, fancy=FALSE, new = FALSE, bg = "lightgrey", show.axes = TRUE, axes.color = "black")
-#snapshotPCA3d(file="figures/clusters.png")
 
 # You can again save the clusters in a file
 write.table(pca.pam$clustering, file = "results/kmeans_clusters.txt")
@@ -138,6 +137,10 @@ The 100 differentially expressed genes can be represented using a heatmap. We in
 On the heatmap, we can see that the first two clusters are quite close to each other. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cells is less important than between the other clusters.
 
 We found that TPH2 (Tryptophan hydroxylase 2), SPARC (Osteonectin), FABP4 (Fatty Acid-Binding Protein 4), and ACTC1 (Actin Alpha Cardiac Muscle 1) were the most differentially expressed genes for each individual cluster. When we plot their expression on the PCA, they clearly belong to the different cell types we have identified. It is interesting to note that SPARC is expressed by all clusters but one, because of a negative fold change value. The first differentially expressed gene with a positive fold change in this cluster is RGS4 (Regulator of G protein Signalling 4), and we have represented this as well on the plot.
+
+![pca3d](../data/pca3d.jpg)
+
+![DE genes](../data/DEgenes.gif)
 
 ```{r DE genes, include=FALSE}
 # DE Genes
@@ -197,30 +200,44 @@ write.table(DE.genesC4, file = "results/DEGenesC4.txt", append = FALSE, sep = "\
 
 ```{r cell type, include= FALSE}
 c4.expr = data.filtered_variable[DE.genesC4[1],]
+
 c4.expr_norm = log10(c4.expr+1)/max(log10(c4.expr+1))
 c4.expr_col = colorRamp(c("white", "red"))(c4.expr_norm)
 pca3d(pca = pca.fit$x, col = rgb(c4.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC4[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 
 c1.expr = data.filtered_variable[DE.genesC1[1],]
 c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
 c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
 max(c1.expr_norm)
 min(c1.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c1.expr_col, maxColorValue = 255))
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c1.expr = data.filtered_variable[DE.genesC1[2],]
+c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
+c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
+max(c1.expr_norm)
+min(c1.expr_norm)
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[2], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 
 c2.expr = data.filtered_variable[DE.genesC2[1],]
 c2.expr_norm = log10(c2.expr+1)/max(log10(c2.expr+1))
 c2.expr_col = colorRamp(c("white", "red"))(c2.expr_norm)
 max(c2.expr_norm)
 min(c2.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c2.expr_col, maxColorValue = 255))
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c2.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC2[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 
 c3.expr = data.filtered_variable[DE.genesC3[1],]
 c3.expr_norm = log10(c3.expr+1)/max(log10(c3.expr+1))
 c3.expr_col = colorRamp(c("white", "red"))(c3.expr_norm)
 max(c3.expr_norm)
 min(c3.expr_norm)
-pca3d(pca = pca.fit$x, col = rgb(c3.expr_col, maxColorValue = 255), title = DE.genesC3[1])
+
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c3.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC3[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
 ```
 
 ```{r heatmap, echo=FALSE}
