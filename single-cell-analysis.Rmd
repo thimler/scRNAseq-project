@@ -1,0 +1,290 @@
+---
+title: "Single cell RNA-seq Analysis"
+author:
+- Valentin Gabeff
+- Théo Imler
+- Abigail Strefeler
+- Léo Sumi
+date: "March 2019"
+output:
+  rmarkdown::github_document: default
+  github_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r libraries, include=FALSE}
+# Loading libraries
+library(ggplot2)
+library(ellipse)
+library(matrixStats)
+library(limma)
+library(ggfortify)
+library(pca3d)
+library(factoextra)
+library(pheatmap)
+library(cluster)
+library(rgl)
+```
+
+```{r import, include=FALSE}
+
+data <- read.table("data/Group5_data.txt", header = TRUE, sep = "\t", dec = ".", row.names = "X")
+data.cells <- ncol(data)
+data.rows <- nrow(data)
+```
+
+## Introduction
+
+A heterogenous mix of mouse cells was analysed using single-cell RNA-seq. After pre-processing and quality control, we have a dataset containing 73 cells showing expression of 23'351 genes.
+The number of read genes per cell, on average, comes out to 9503. This was calculated by simply counting the number of nonzero entries for each cell, and performing an average. The number of genes per cell can give information about quality, since samples epxressing too few genes are more likely free RNA, and samples expressing too many are likely doublets of cells. Plotting expression per cell shows a fairly even distribution of gene counts over the different cells.
+
+```{r genes per cell, echo=FALSE}
+# Genes per cell
+per_cell <- colSums(data != 0)
+avg_per_cell <- mean(per_cell)
+hist(per_cell, breaks=50, col="blue", main="Histogram of gene reads per cell", xlab="Number of reads", ylab="Number of cells")
+```
+
+## Results
+
+### Part 1: Number of cell types
+
+The number of cell types is determined using clustering. The criteria we use for clustering is the expression of certain genes: cells that express these genes in a similar manner are more closely related than those that express them differently.
+
+First we must decide which genes we will use to compare cells. We have two main options, either we retreive only highly expressed genes or we use genes with highly variable expression. Here we decided to use genes with a high variability as the histogram of variability shows an evident tail. Yet, this choice should not alter our results much. Therefore out of all of the detected genes, we keep only these ones in our analysis.
+
+```{r marker genes, echo=FALSE}
+# Get most expressed genes
+gene.expression <- apply(data, 1, median)
+hist(log10(gene.expression), breaks = 50, col='blue', main = "Gene expression distribution", xlab = "Gene expression median (log10)")
+
+# Get Most variable genes
+gene.variation <- apply(data, 1, sd)
+hist(log10(gene.variation), breaks = 50,col = "blue",freq = TRUE,main = "Gene variation distribution", xlab = "Gene expression standard deviation (log10)") 
+abline(v = 3.61, col = "red",lwd=3, lty=2)
+
+# Because we choose to use the 10% most variable genes, the most expressed genes object is no more necessary
+rm(gene.expression)
+
+# We choose to recover the 10% most variable genes
+sorted_sd <- sort(gene.variation, decreasing = TRUE)
+genes.mostvariable <- head(sorted_sd, 0.1*data.rows)
+```
+
+To be able to correctly compare expression between cell types, gene expression must be normalized. This is due to the difference in the number of reads per cells.
+
+The output of the voom function shows the log2 normalization of number of reads per gene with respect to the square-root standard deviation. One can observe that genes with many reads tend to have a low variation while genes with few reads are quite variable among the cell population. Our study focuses on the latter case. 
+
+```{r normalization, echo=FALSE}
+# Filter and normalize the data for the 10% most variable genes
+data.filtered_variable <- data[c(names(genes.mostvariable)),]
+data.norm = voom(data.filtered_variable, plot=TRUE, normalize.method = "quantile")
+```
+
+```{r saving data, include=FALSE}
+# Save to txt format the normalized data (data.norm$E)
+write.table(data.norm$E, file = "results/normalized_data.txt", append = FALSE, sep = "\t",
+                        eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+                        col.names = TRUE, qmethod = c("escape", "double"),
+                        fileEncoding = "utf8")
+
+# Save to binary format the normalized data (data.norm$E)
+save(data.norm, file = "results/datanorm.rdata")
+```
+
+So far, data are spread on 2335 dimensions. We use Principal Component Analysis (PCA) to project the data on a 3D space whose basis explain most of the variance among the data.
+
+Reducing dimensionality allows us to visualize the data, and gives us some idea about what clusters may be present. The `fviz_eig` function allows us to determine the percentage of explained variance for each principal component. For tridimensional visualization, we select the three first principal components that explain 40% of the data variance, as shown on the bar plot below. On a 3D interactive plot, we can visually identify 4 clusters.
+
+To cluster the data, we use a more robust clustering method than k-means called partitioning around medoids (PAM). Representative objects called medoids are found, and groups are creating by assigning each point to the nearest medoid. This method minimizes the sum of dissimilarities of observations to their closest representative object. The number of clusters must be specified before execution. Therefore we ran the algorithm multiple times for a number of clusters varying between 2 and 15, and we evaluated the results each time. The "elbow" point was found at 4 clusters, so this organization best explains the data.
+
+```{r pca and clustering, echo=FALSE}
+# PCA
+# Let's find out what are the three first principal components that explain
+# most of the variance between the cells. Reduction of dimension from 2335 to 3.
+pca.fit <- prcomp(t(data.norm$E), scale. = TRUE)
+fviz_eig(pca.fit, main = "Variance explained by top PCs")
+
+# PCA in a 2D plot
+# autoplot(pca.fit)
+
+# Saving first three PCs in a file
+write.table(pca.fit$rotation[,1:3], file = "results/principal_components.txt")
+
+# PAM clustering method (more robust than k-means)
+# 3D plot
+
+wss <- data.frame(matrix(ncol=1,nrow=15))
+  for (i in 1:15) wss[i,1] <- pam(x=pca.fit$x[,1:3], k=i, metric="euclidean", stand=FALSE)$objective['swap']
+plot(x = row.names(wss),y = wss$matrix.ncol...1..nrow...15., type = "o", xlab="Number of Clusters",
+     ylab="Objective function minimum", pch = 15, main ="Optimal number of clusters for k-medoid") + abline(v = 4,col = "red",lwd=3, lty=2)
+
+pca.pam <- pam(x=pca.fit$x[,1:3], k=4, metric="euclidean", stand=FALSE)
+pca3d(pca=pca.fit$x, group=pca.pam$clustering, show.ellipses=TRUE, show.plane=TRUE, fancy=FALSE, new = FALSE, bg = "lightgrey", show.axes = TRUE, axes.color = "black")
+
+# You can again save the clusters in a file
+write.table(pca.pam$clustering, file = "results/kmeans_clusters.txt")
+```
+
+### Part 2: Marker genes for different cell types
+
+Different cell types will have certain genes that they express in a manner different from other cell types. These are called differentially expressed (DE) genes. By choosing one cluster of cells and comparing the expression of their genes against the other clusters, one can statistically determine the fold change of expression using the limma package. The genes were selected as being DE genes when the absolute value of expression fold change was superior to 2 and the differences were significant (adjusted p-values < 0.05).
+
+The 100 differentially expressed genes can be represented using a heatmap. We indeed see that the 4 different cell types show differential expression of these.
+
+On the heatmap, we can see that the first two clusters are quite close to each other. This is also seen on the plot of the DE genes for each cluster where RGS4 is expressed mainly in one cluster, but also in another. This means that the segregation between these two groups of cells is less important than between the other clusters. Heatmaps effectively retrieved 4 clusters from the 400 DE genes that were selected, hence confirming the clustering method performed above.
+(Note that the name of the cluster displayed on the heatmap may not match the one of the k-means.)
+
+We found that TPH2 (Tryptophan hydroxylase 2), SPARC (Osteonectin), FABP4 (Fatty Acid-Binding Protein 4), and ACTC1 (Actin Alpha Cardiac Muscle 1) were the most differentially expressed genes for each individual cluster. When we plot their expression on the PCA, they clearly belong to the different cell types we have identified. It is interesting to note that SPARC is expressed by all clusters but one, because of a negative fold change value. The first differentially expressed gene with a positive fold change in this cluster is RGS4 (Regulator of G protein Signalling 4), and we have represented this as well on the plot.
+A red dot means that the gene is more express in the corresponding cell.   Intensity is calculated as log10(expression+1) and normalized to the maximum expression level.
+
+
+![pca3d](../data/pca3d.jpg)  
+(nb: please run the .rmd file to have access to the 3d interactive plot. We were not able to embed it in the html output)
+
+![DE genes](../data/DEgenes.gif)
+
+```{r DE genes, include=FALSE}
+# DE Genes
+
+#Find genes most important to explain first PC
+head(sort(pca.fit$rotation[,1], decreasing = TRUE))
+
+#Find genes that explain the most first cluster
+fit.C1 <- lmFit(data.norm$E, model.matrix(~(pca.pam$clustering == 1)))
+fit.C1 <- eBayes(fit.C1)
+
+DE.C1 = topTable(fit.C1,n=Inf,adjust="fdr", sort.by = "logFC")
+DE.genesC1<-row.names(head(DE.C1[((DE.C1[,1])>1) & (DE.C1[,5]<0.05),],100))
+write.table(DE.genesC1, file = "results/DEGenesC1.txt", append = FALSE, sep = "\n",
+            eol = "\n", na = "NA", dec = ".", row.names = FALSE,
+            col.names = FALSE, qmethod = c("escape", "double"),
+            fileEncoding = "utf8", quote=FALSE)
+
+#Find genes that explain the most second cluster
+fit.C2 <- lmFit(data.norm$E, model.matrix(~(pca.pam$clustering == 2)))
+fit.C2 <- eBayes(fit.C2)
+
+DE.C2 = topTable(fit.C2,n=Inf,adjust="fdr", sort.by = "logFC")
+DE.genesC2<-row.names(head(DE.C2[((DE.C2[,1])>1) & (DE.C2[,5]<0.05),], 100))
+write.table(DE.genesC2, file = "results/DEGenesC2.txt", append = FALSE, sep = "\n",
+            eol = "\n", na = "NA", dec = ".", row.names = FALSE,
+            col.names = FALSE, qmethod = c("escape", "double"),
+            fileEncoding = "utf8", quote=FALSE)
+
+#Find genes that explain the most third cluster
+fit.C3 <- lmFit(data.norm$E, model.matrix(~(pca.pam$clustering == 3)))
+fit.C3 <- eBayes(fit.C3)
+
+DE.C3 = topTable(fit.C3,n=Inf,adjust="fdr", sort.by = "logFC")
+DE.genesC3<-row.names(head(DE.C3[((DE.C3[,1])>1) & (DE.C3[,5]<0.05),],100))
+write.table(DE.genesC3, file = "results/DEGenesC3.txt", append = FALSE, sep = "\n",
+            eol = "\n", na = "NA", dec = ".", row.names = FALSE,
+            col.names = FALSE, qmethod = c("escape", "double"),
+            fileEncoding = "utf8", quote=FALSE)
+
+#Find genes that explain the most fourth cluster
+design.C4 <- matrix(0, nrow = 73, ncol = 1)
+design.C4[pca.pam$clustering == 4] = 1
+colnames(design.C4) <- c("Cluster_4")
+
+fit.C4 <- lmFit(data.norm$E, model.matrix(~(pca.pam$clustering == 4)))
+fit.C4 <- eBayes(fit.C4)
+
+DE.C4 = topTable(fit.C4,n=Inf,adjust="fdr", sort.by = "logFC")
+DE.genesC4<-row.names(head(DE.C4[((DE.C4[,1])>2) & (DE.C4[,5]<0.05),], 100))
+#DE.genesC4<-row.names(DE.C4)[DE.C4$logFC>2 & DE.C4$adj.P.Val<0.05]
+write.table(DE.genesC4, file = "results/DEGenesC4.txt", append = FALSE, sep = "\n",
+            eol = "\n", na = "NA", dec = ".", row.names = FALSE,
+            col.names = FALSE, qmethod = c("escape", "double"),
+            fileEncoding = "utf8", quote=FALSE)
+```
+
+```{r cell type, include= FALSE}
+c4.expr = data.filtered_variable[DE.genesC4[1],]
+
+c4.expr_norm = log10(c4.expr+1)/max(log10(c4.expr+1))
+c4.expr_col = colorRamp(c("white", "red"))(c4.expr_norm)
+pca3d(pca = pca.fit$x, col = rgb(c4.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC4[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c1.expr = data.filtered_variable[DE.genesC1[1],]
+c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
+c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
+max(c1.expr_norm)
+min(c1.expr_norm)
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c1.expr = data.filtered_variable[DE.genesC1[2],]
+c1.expr_norm = log10(c1.expr+1)/max(log10(c1.expr+1))
+c1.expr_col = colorRamp(c("white", "red"))(c1.expr_norm)
+max(c1.expr_norm)
+min(c1.expr_norm)
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c1.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC1[2], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c2.expr = data.filtered_variable[DE.genesC2[1],]
+c2.expr_norm = log10(c2.expr+1)/max(log10(c2.expr+1))
+c2.expr_col = colorRamp(c("white", "red"))(c2.expr_norm)
+max(c2.expr_norm)
+min(c2.expr_norm)
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c2.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC2[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+
+c3.expr = data.filtered_variable[DE.genesC3[1],]
+c3.expr_norm = log10(c3.expr+1)/max(log10(c3.expr+1))
+c3.expr_col = colorRamp(c("white", "red"))(c3.expr_norm)
+max(c3.expr_norm)
+min(c3.expr_norm)
+
+pca3d(pca = pca.fit$x,axes.color = "black", col = rgb(c3.expr_col, maxColorValue = 255))
+legend3d("topright", legend = DE.genesC3[1], pch = 16, col = rainbow(3), cex=1.5, inset=c(0.02))
+```
+
+```{r heatmap, echo=FALSE}
+pheatmap(data.norm[c(DE.genesC1, DE.genesC2, DE.genesC3, DE.genesC4),],
+         cluster_cols = T,
+         cluster_rows = F,
+         show_colnames = F,
+         show_rownames = F,
+         annotation_col = data.frame(cluster = factor(pca.pam$clustering, labels = paste("Cluster", 1:4))),
+         main = "Heatmap of the top 100 most expressed genes for each clusters"
+         )
+```
+
+## Determining the cell types
+
+To determine the different cell types present in our sample, we upload the differentially expressed genes for each cluster into EnrichR, an integrative web-based gene-list enrichment analysis tool. We found that we have cells from the heart, adipose tissue, hypothalamus, and cerebral cortex. These last two categories explain the similarity between two of our clusters, since they are both neural tissues.
+For the sake of the Enrichment analysis, one must only take DE genes that are more expressed in the cluster, hence genes such as SPARC that are less expressed specifically in one cluster are not taken into account.
+
+Cluster 1:  
+
+![Cell type for cluster 1](../data/C1_type.jpg)
+![Cell type for cluster 1](../data/Enrich4.jpeg)
+
+Cluster 2:  
+![Cell type for cluster 2](../data/C2_type.jpg)
+![Cell type for cluster 2](../data/Enrich3.jpeg)
+
+Cluster 3:  
+![Cell type for cluster 3](../data/C3_type.jpg)
+![Cell type for cluster 3](../data/Enrich2.jpeg)
+
+Cluster 4:  
+![Cell type for cluster 4](../data/C4_type.jpg)
+![Cell type for cluster 4](../data/Enrich1.jpeg)
+
+## Conclusion
+
+Overall, this method allowed us to retrieve 4 distinct clusters from the initial dataset.  
+Clustering was performed by reducing dimension using PCA followed by k-medoids. Those results were then confirmed the heatmap. DE genes from each clusters were retreived using Limma and the nature of each cell group was then found using EnrichR.  
+We found that Cluster 1 is mainly composed of cells from the cerebral cortex while Cluster 4 showed evidences of hypothalamus expression genes. Due to the proximity of these cell lines, this explain why the two clusters were closely related on the heatmap and on the PCA plot. 
+The two other clusters account for heart tissues and adipose brown tissues.
+
+
+
