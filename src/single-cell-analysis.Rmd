@@ -2,11 +2,11 @@
 title: "Single cell RNA-seq Analysis"
 author:
   - "Valentin Gabeff"
-  - "Théo Imler"
+  - "ThÃ©o Imler"
   - "Abigail Strefeler"
-  - "Léo Sumi"
+  - "LÃ©o Sumi"
 date: "March 2019"
-output: html_document
+output: rmarkdown::github_document
 ---
 
 ```{r setup, include=FALSE}
